@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escape the Addiction Trap</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #222; color: white; text-align: center; padding: 20px; }
+        #game-text { margin: 20px auto; width: 60%; line-height: 1.6; }
+        .choice { display: block; margin: 10px auto; padding: 10px; background: #444; color: white; border: none; cursor: pointer; }
+        .choice:hover { background: #666; }
+    </style>
+</head>
+<body>
+    <h1>Escape the Addiction Trap</h1>
+    <p id="game-text">You wake up feeling stressed. How do you start your day?</p>
+    <div id="choices"></div>
+    <p>Stress: <span id="stress">50</span> | Addiction: <span id="addiction">0</span></p>
+    <script>
+        let stress = 50;
+        let addiction = 0;
+
+        const choices = {
+            start: [
+                { text: "Play video games", effect: () => { addiction += 10; stress -= 5; updateGame("You play games and feel slightly better, but it pulls you in..."); } },
+                { text: "Go for a run", effect: () => { stress -= 15; updateGame("You feel refreshed and more focused."); } },
+                { text: "Talk to a friend", effect: () => { stress -= 10; addiction -= 5; updateGame("You had a nice chat and feel supported."); } }
+            ]
+        };
+
+        function updateGame(message) {
+            document.getElementById("game-text").innerText = message;
+            document.getElementById("stress").innerText = stress;
+            document.getElementById("addiction").innerText = addiction;
+            
+            if (addiction >= 30) {
+                document.getElementById("game-text").innerText = "Your gaming addiction has taken over. You are now seeing a counselor...";
+                document.getElementById("choices").innerHTML = "<button class='choice' onclick='startCounseling()'>Continue</button>";
+            } else {
+                renderChoices("start");
+            }
+        }
+
+        function renderChoices(key) {
+            document.getElementById("choices").innerHTML = "";
+            choices[key].forEach(choice => {
+                let button = document.createElement("button");
+                button.innerText = choice.text;
+                button.className = "choice";
+                button.onclick = choice.effect;
+                document.getElementById("choices").appendChild(button);
+            });
+        }
+
+        function startCounseling() {
+            document.getElementById("game-text").innerText = "You meet with Dr. Chae, an addiction counselor. He listens carefully...";
+            document.getElementById("choices").innerHTML = "<button class='choice'>Talk about your stress</button> <button class='choice'>Discuss alternative activities</button>";
+        }
+
+        renderChoices("start");
+    </script>
+</body>
+</html>

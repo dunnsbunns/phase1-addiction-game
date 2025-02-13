@@ -9,6 +9,8 @@
         #game-text { margin: 20px auto; width: 60%; line-height: 1.6; }
         .choice { display: block; margin: 10px auto; padding: 10px; background: #444; color: white; border: none; cursor: pointer; }
         .choice:hover { background: #666; }
+        #resistance-container { margin-top: 20px; }
+        #resistance-bar { width: 60%; height: 20px; background: red; }
     </style>
 </head>
 <body>
@@ -16,9 +18,14 @@
     <p id="game-text">You wake up feeling stressed. How do you start your day?</p>
     <div id="choices"></div>
     <p>Stress: <span id="stress">50</span> | Addiction: <span id="addiction">0</span></p>
+    <div id="resistance-container">
+        <p>Client Resistance:</p>
+        <div id="resistance-bar"></div>
+    </div>
     <script>
         let stress = 50;
         let addiction = 0;
+        let resistance = 100;
 
         const choices = {
             start: [
@@ -53,8 +60,77 @@
         }
 
         function startCounseling() {
-            document.getElementById("game-text").innerText = "You meet with Dr. Chae, an addiction counselor. He listens carefully...";
-            document.getElementById("choices").innerHTML = "<button class='choice'>Talk about your stress</button> <button class='choice'>Discuss alternative activities</button>";
+            document.getElementById("game-text").innerText = "You are now Dr. Chae, an addiction counselor. Speak with the client.";
+            document.getElementById("choices").innerHTML = `
+                <input type="text" id="player-input" placeholder="Ask the client something..." style="width: 60%; padding: 5px;">
+                <button class='choice' onclick='processPlayerInput()'>Ask</button>
+            `;
+        }
+
+        async function processPlayerInput() {
+            let playerInput = document.getElementById("player-input").value;
+            if (!playerInput) return;
+
+            document.getElementById("game-text").innerText = "The client is thinking...";
+            
+            let aiResponse = await getAIResponse(playerInput);
+            document.getElementById("game-text").innerText = aiResponse;
+            
+            let miScore = evaluateMotivationalInterviewing(playerInput);
+            adjustResistance(miScore);
+        }
+
+        async function getAIResponse(playerInput) {
+            const response = await fetch("http://localhost:3000/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ message: playerInput })
+            });
+
+            const data = await response.json();
+            return data.reply;
+        }
+
+        function evaluateMotivationalInterviewing(input) {
+            const goodMIKeywords = ["tell me more", "how do you feel", "what do you think", "it sounds like", "I understand"];
+            const badMIKeywords = ["you should", "just stop", "why don't you", "that's wrong"];
+            
+            let score = 0; 
+            
+            goodMIKeywords.forEach(keyword => {
+                if (input.toLowerCase().includes(keyword)) {
+                    score = -15; // Strong MI technique decreases resistance
+                }
+            });
+            
+            badMIKeywords.forEach(keyword => {
+                if (input.toLowerCase().includes(keyword)) {
+                    score = 10; // Poor MI technique increases resistance
+                }
+            });
+            
+            return score;
+        }
+
+        function adjustResistance(amount) {
+            resistance += amount;
+            if (resistance > 100) resistance = 100;
+            if (resistance < 0) resistance = 0;
+            document.getElementById("resistance-bar").style.width = resistance + "%";
+            
+            if (resistance === 100) {
+                document.getElementById("game-text").innerText = "The client has become very resistant and is shutting down...";
+            }
+            
+            if (resistance === 0) {
+                document.getElementById("game-text").innerText = "You've built a strong therapeutic alliance! Time to apply what you've learned.";
+                document.getElementById("choices").innerHTML = "<button class='choice' onclick='returnToLife()'>Continue</button>";
+            }
+        }
+
+        function returnToLife() {
+            document.getElementById("game-text").innerText = "You feel more in control of your habits. Phase 3 begins!";
+            document.getElementById("choices").innerHTML = "";
         }
 
         renderChoices("start");

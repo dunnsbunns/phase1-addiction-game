@@ -13,28 +13,44 @@
         #resistance-bar { width: 100%; height: 20px; background: red; transition: width 0.3s ease; }
         #player-input { margin: 10px 0; padding: 5px; width: 60%; }
         .error-message { color: #ff6b6b; margin: 10px 0; }
+        .stats { margin: 15px 0; padding: 10px; background: #333; display: inline-block; border-radius: 5px; }
     </style>
 </head>
 <body>
     <h1>Escape the Addiction Trap</h1>
     <p id="game-text">You wake up feeling stressed. How do you start your day?</p>
     <div id="choices"></div>
-    <p>Stress: <span id="stress">50</span> | Addiction: <span id="addiction">0</span></p>
+    <div class="stats">
+        <p>Stress: <span id="stress">50</span> | Addiction: <span id="addiction">0</span></p>
+    </div>
     <div id="resistance-container">
         <p>Client Resistance:</p>
         <div id="resistance-bar"></div>
     </div>
     <div id="error-message" class="error-message"></div>
+    
     <script>
         let stress = 50;
         let addiction = 0;
         let resistance = 100;
+        let currentStage = "start";
 
+        // Define all game scenarios
         const choices = {
             start: [
                 { text: "Play video games", effect: () => { addiction += 10; stress -= 5; updateGame("You play games and feel slightly better, but it pulls you in..."); } },
                 { text: "Go for a run", effect: () => { stress -= 15; updateGame("You feel refreshed and more focused."); } },
                 { text: "Talk to a friend", effect: () => { stress -= 10; addiction -= 5; updateGame("You had a nice chat and feel supported."); } }
+            ],
+            counseling: [
+                { text: "Ask open-ended questions", effect: () => { resistance -= 15; updateGame("The client opens up more as they feel heard."); } },
+                { text: "Give direct advice", effect: () => { resistance += 10; updateGame("The client seems defensive when told what to do."); } },
+                { text: "Practice reflective listening", effect: () => { resistance -= 20; updateGame("Reflecting their feelings builds trust quickly."); } }
+            ],
+            recovery: [
+                { text: "Set boundaries with gaming", effect: () => { addiction -= 15; stress += 5; updateGame("It's challenging but you're making progress."); } },
+                { text: "Find alternative hobbies", effect: () => { addiction -= 10; stress -= 10; updateGame("New activities are helping fill the void."); } },
+                { text: "Join a support group", effect: () => { addiction -= 20; stress -= 5; updateGame("Shared experiences make you feel less alone."); } }
             ]
         };
 
@@ -43,25 +59,37 @@
             document.getElementById("stress").innerText = Math.max(0, Math.min(100, stress));
             document.getElementById("addiction").innerText = Math.max(0, Math.min(100, addiction));
             document.getElementById("error-message").innerText = "";
+            document.getElementById("resistance-bar").style.width = resistance + "%";
             
-            if (addiction >= 30) {
+            // Determine game flow based on addiction level
+            if (currentStage === "start" && addiction >= 30) {
+                currentStage = "counseling";
                 document.getElementById("game-text").innerText = "Your gaming addiction has taken over. You are now seeing a counselor...";
                 document.getElementById("choices").innerHTML = "<button class='choice' onclick='startCounseling()'>Continue</button>";
+            } else if (currentStage === "counseling" && resistance <= 0) {
+                currentStage = "recovery";
+                document.getElementById("game-text").innerText = "You've built a strong therapeutic alliance! Time to apply what you've learned.";
+                document.getElementById("choices").innerHTML = "<button class='choice' onclick='startRecovery()'>Continue Recovery</button>";
+            } else if (currentStage === "recovery" && addiction <= 0) {
+                gameWin();
             } else {
-                renderChoices("start");
+                renderChoices(currentStage);
             }
         }
 
         function renderChoices(key) {
             const choicesDiv = document.getElementById("choices");
             choicesDiv.innerHTML = "";
-            choices[key].forEach(choice => {
-                let button = document.createElement("button");
-                button.innerText = choice.text;
-                button.className = "choice";
-                button.onclick = choice.effect;
-                choicesDiv.appendChild(button);
-            });
+            
+            if (choices[key]) {
+                choices[key].forEach(choice => {
+                    let button = document.createElement("button");
+                    button.innerText = choice.text;
+                    button.className = "choice";
+                    button.onclick = choice.effect;
+                    choicesDiv.appendChild(button);
+                });
+            }
         }
 
         function startCounseling() {
@@ -70,6 +98,28 @@
                 <input type="text" id="player-input" placeholder="Ask the client something...">
                 <button class='choice' onclick='processPlayerInput()'>Ask</button>
             `;
+            
+            // Also offer predefined choices for offline play
+            renderChoices("counseling");
+        }
+
+        function startRecovery() {
+            currentStage = "recovery";
+            document.getElementById("game-text").innerText = "You're now applying what you've learned in therapy to your daily life.";
+            renderChoices("recovery");
+        }
+
+        function gameWin() {
+            document.getElementById("game-text").innerText = "Congratulations! You've successfully overcome your addiction and learned healthy coping mechanisms.";
+            document.getElementById("choices").innerHTML = "<button class='choice' onclick='resetGame()'>Play Again</button>";
+        }
+
+        function resetGame() {
+            stress = 50;
+            addiction = 0;
+            resistance = 100;
+            currentStage = "start";
+            updateGame("You wake up feeling stressed. How do you start your day?");
         }
 
         async function processPlayerInput() {
@@ -80,6 +130,7 @@
             document.getElementById("error-message").innerText = "";
             
             try {
+                // First try to connect to the API
                 let response = await fetch("http://127.0.0.1:3000/chat", {
                     method: "POST",
                     headers: { 
@@ -101,14 +152,35 @@
                 adjustResistance(miScore);
             } catch (error) {
                 console.error('Error:', error);
-                document.getElementById("error-message").innerText = "Unable to connect to the counseling service. Please try again.";
-                document.getElementById("game-text").innerText = "Connection error occurred...";
+                document.getElementById("error-message").innerText = "Unable to connect to the counseling service. Using offline mode.";
+                
+                // Fallback to simple response system when API is unavailable
+                let fallbackResponses = [
+                    "I don't really want to talk about it.",
+                    "I guess I've been playing too much, but it helps me cope.",
+                    "Everyone does it, I don't see why it's such a big deal.",
+                    "Sometimes I feel like games are the only thing I have control over."
+                ];
+                
+                // Simple evaluation without the API
+                let miScore = evaluateMotivationalInterviewing(playerInput);
+                adjustResistance(miScore);
+                
+                // Display a random response modified by the MI score
+                let responseIndex = Math.floor(Math.random() * fallbackResponses.length);
+                if (miScore < 0) {
+                    document.getElementById("game-text").innerText = "Client: " + fallbackResponses[responseIndex] + " Actually, I appreciate you asking like that.";
+                } else {
+                    document.getElementById("game-text").innerText = "Client: " + fallbackResponses[responseIndex] + " I don't think you understand.";
+                }
+                
+                document.getElementById("player-input").value = "";
             }
         }
 
         function evaluateMotivationalInterviewing(input) {
-            const goodMIKeywords = ["tell me more", "how do you feel", "what do you think", "it sounds like", "I understand"];
-            const badMIKeywords = ["you should", "just stop", "why don't you", "that's wrong"];
+            const goodMIKeywords = ["tell me more", "how do you feel", "what do you think", "it sounds like", "I understand", "your perspective", "choices", "goals"];
+            const badMIKeywords = ["you should", "just stop", "why don't you", "that's wrong", "have to", "must", "need to"];
             
             let score = 0;
             input = input.toLowerCase();
@@ -125,6 +197,10 @@
                 }
             });
             
+            // Add more scoring for question marks (open questions) and input length (showing interest)
+            if (input.includes("?")) score -= 5;
+            if (input.length > 30) score -= 5;
+            
             return score;
         }
 
@@ -132,25 +208,21 @@
             resistance = Math.max(0, Math.min(100, resistance + amount));
             document.getElementById("resistance-bar").style.width = resistance + "%";
             
+            // Change color based on resistance level
+            const color = resistance > 70 ? 'red' : resistance > 30 ? 'orange' : 'green';
+            document.getElementById("resistance-bar").style.background = color;
+            
             if (resistance >= 100) {
                 document.getElementById("game-text").innerText = "The client has become very resistant and is shutting down...";
             }
             
             if (resistance <= 0) {
                 document.getElementById("game-text").innerText = "You've built a strong therapeutic alliance! Time to apply what you've learned.";
-                document.getElementById("choices").innerHTML = "<button class='choice' onclick='returnToLife()'>Continue</button>";
+                document.getElementById("choices").innerHTML = "<button class='choice' onclick='startRecovery()'>Continue Recovery</button>";
             }
         }
 
-        function returnToLife() {
-            document.getElementById("game-text").innerText = "You feel more in control of your habits. Phase 3 begins!";
-            document.getElementById("choices").innerHTML = "";
-        }
-
-        renderChoices("start");
-    </script>
-</body>
-</html>
+        // Initialize the game
         renderChoices("start");
     </script>
 </body>

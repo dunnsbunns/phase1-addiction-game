@@ -12,13 +12,19 @@
         #resistance-container { margin-top: 20px; border: 1px solid #444; padding: 2px; width: 60%; margin-left: auto; margin-right: auto; }
         #resistance-bar { width: 100%; height: 20px; background: red; transition: width 0.3s ease; }
         #player-input { margin: 10px 0; padding: 5px; width: 60%; }
+        .input-container { margin: 20px 0; }
         .error-message { color: #ff6b6b; margin: 10px 0; }
         .stats { margin: 15px 0; padding: 10px; background: #333; display: inline-block; border-radius: 5px; }
+        .mode-switch { margin: 10px 0; }
     </style>
 </head>
 <body>
     <h1>Escape the Addiction Trap</h1>
     <p id="game-text">You wake up feeling stressed. How do you start your day?</p>
+    <div id="input-container" class="input-container" style="display: none;">
+        <input type="text" id="player-input" placeholder="Ask the client something...">
+        <button class='choice' onclick='processPlayerInput()'>Ask</button>
+    </div>
     <div id="choices"></div>
     <div class="stats">
         <p>Stress: <span id="stress">50</span> | Addiction: <span id="addiction">0</span></p>
@@ -28,12 +34,16 @@
         <div id="resistance-bar"></div>
     </div>
     <div id="error-message" class="error-message"></div>
+    <div id="mode-switch" class="mode-switch" style="display: none;">
+        <button class="choice" onclick="toggleInputMode()">Switch to Predefined Choices</button>
+    </div>
     
     <script>
         let stress = 50;
         let addiction = 0;
         let resistance = 100;
         let currentStage = "start";
+        let useTextInput = true;
 
         // Define all game scenarios
         const choices = {
@@ -70,9 +80,11 @@
                 currentStage = "recovery";
                 document.getElementById("game-text").innerText = "You've built a strong therapeutic alliance! Time to apply what you've learned.";
                 document.getElementById("choices").innerHTML = "<button class='choice' onclick='startRecovery()'>Continue Recovery</button>";
+                document.getElementById("input-container").style.display = "none";
+                document.getElementById("mode-switch").style.display = "none";
             } else if (currentStage === "recovery" && addiction <= 0) {
                 gameWin();
-            } else {
+            } else if (currentStage !== "counseling") {
                 renderChoices(currentStage);
             }
         }
@@ -93,25 +105,46 @@
         }
 
         function startCounseling() {
+            currentStage = "counseling";
             document.getElementById("game-text").innerText = "You are now Dr. Chae, an addiction counselor. Speak with the client.";
-            document.getElementById("choices").innerHTML = `
-                <input type="text" id="player-input" placeholder="Ask the client something...">
-                <button class='choice' onclick='processPlayerInput()'>Ask</button>
-            `;
+            document.getElementById("input-container").style.display = "block";
+            document.getElementById("mode-switch").style.display = "block";
+            document.getElementById("choices").innerHTML = "";
             
-            // Also offer predefined choices for offline play
-            renderChoices("counseling");
+            // Display initial client statement
+            setTimeout(() => {
+                document.getElementById("game-text").innerText = "Client: I don't think I have a problem with gaming. Everyone plays a lot these days.";
+            }, 1000);
+            
+            toggleInputMode(); // Start with useTextInput = true
+        }
+
+        function toggleInputMode() {
+            useTextInput = !useTextInput;
+            if (useTextInput) {
+                document.getElementById("input-container").style.display = "block";
+                document.getElementById("choices").innerHTML = "";
+                document.getElementById("mode-switch").querySelector("button").innerText = "Switch to Predefined Choices";
+            } else {
+                document.getElementById("input-container").style.display = "none";
+                renderChoices("counseling");
+                document.getElementById("mode-switch").querySelector("button").innerText = "Switch to Free Text Input";
+            }
         }
 
         function startRecovery() {
             currentStage = "recovery";
             document.getElementById("game-text").innerText = "You're now applying what you've learned in therapy to your daily life.";
+            document.getElementById("input-container").style.display = "none";
+            document.getElementById("mode-switch").style.display = "none";
             renderChoices("recovery");
         }
 
         function gameWin() {
             document.getElementById("game-text").innerText = "Congratulations! You've successfully overcome your addiction and learned healthy coping mechanisms.";
             document.getElementById("choices").innerHTML = "<button class='choice' onclick='resetGame()'>Play Again</button>";
+            document.getElementById("input-container").style.display = "none";
+            document.getElementById("mode-switch").style.display = "none";
         }
 
         function resetGame() {
@@ -119,6 +152,8 @@
             addiction = 0;
             resistance = 100;
             currentStage = "start";
+            document.getElementById("input-container").style.display = "none";
+            document.getElementById("mode-switch").style.display = "none";
             updateGame("You wake up feeling stressed. How do you start your day?");
         }
 
@@ -260,6 +295,8 @@
             if (resistance <= 0) {
                 document.getElementById("game-text").innerText = "You've built a strong therapeutic alliance! Time to apply what you've learned.";
                 document.getElementById("choices").innerHTML = "<button class='choice' onclick='startRecovery()'>Continue Recovery</button>";
+                document.getElementById("input-container").style.display = "none";
+                document.getElementById("mode-switch").style.display = "none";
             }
         }
 

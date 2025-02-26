@@ -130,14 +130,21 @@
             document.getElementById("error-message").innerText = "";
             
             try {
-                // First try to connect to the API
-                let response = await fetch("http://127.0.0.1:3000/chat", {
+                // Evaluate the therapist's Motivational Interviewing skills
+                let miScore = evaluateMotivationalInterviewing(playerInput);
+                
+                // Send request to our backend server
+                let response = await fetch("http://localhost:3000/chat", {
                     method: "POST",
                     headers: { 
-                        "Content-Type": "application/json",
-                        "Accept": "application/json"
+                        "Content-Type": "application/json"
                     },
-                    body: JSON.stringify({ message: playerInput })
+                    body: JSON.stringify({ 
+                        message: playerInput,
+                        addiction: addiction,
+                        stress: stress,
+                        resistance: resistance
+                    })
                 });
 
                 if (!response.ok) {
@@ -145,14 +152,15 @@
                 }
 
                 const data = await response.json();
-                document.getElementById("game-text").innerText = data.reply;
+                document.getElementById("game-text").innerText = "Client: " + data.reply;
                 document.getElementById("player-input").value = "";
                 
-                let miScore = evaluateMotivationalInterviewing(playerInput);
-                adjustResistance(miScore);
+                // Adjust resistance based on both MI score and client response
+                adjustResistance(miScore + data.clientResponseScore);
+                
             } catch (error) {
                 console.error('Error:', error);
-                document.getElementById("error-message").innerText = "Unable to connect to the counseling service. Using offline mode.";
+                document.getElementById("error-message").innerText = "Unable to connect to the AI service. Using offline mode.";
                 
                 // Fallback to simple response system when API is unavailable
                 let fallbackResponses = [
@@ -179,27 +187,60 @@
         }
 
         function evaluateMotivationalInterviewing(input) {
-            const goodMIKeywords = ["tell me more", "how do you feel", "what do you think", "it sounds like", "I understand", "your perspective", "choices", "goals"];
-            const badMIKeywords = ["you should", "just stop", "why don't you", "that's wrong", "have to", "must", "need to"];
+            const goodMIKeywords = [
+                "tell me more", "how do you feel", "what do you think", "it sounds like", 
+                "I understand", "your perspective", "choices", "goals", "reflections", 
+                "values", "strengths", "on a scale", "help me understand", 
+                "what would you like", "what matters to you"
+            ];
+            
+            const badMIKeywords = [
+                "you should", "just stop", "why don't you", "that's wrong", 
+                "have to", "must", "need to", "you can't", "you're addicted", 
+                "problem", "bad habit", "quit", "failure"
+            ];
             
             let score = 0;
             input = input.toLowerCase();
             
+            // Check for OARS techniques (Open questions, Affirmations, Reflections, Summaries)
+            if (input.includes("?") && !input.includes("right?") && !input.includes("ok?")) {
+                score -= 5; // Open question
+            }
+            
+            // Check for affirming language
+            if (input.includes("appreciate") || input.includes("strength") || 
+                input.includes("effort") || input.includes("commitment")) {
+                score -= 10; // Affirmation
+            }
+            
+            // Check for reflective statements
+            if (input.includes("it sounds like") || input.includes("you feel") || 
+                input.includes("you're saying") || input.includes("in other words")) {
+                score -= 15; // Reflection
+            }
+            
+            // Check for summaries
+            if (input.includes("so far") || input.includes("to summarize") || 
+                input.includes("it seems like") && input.length > 50) {
+                score -= 10; // Summary
+            }
+            
+            // Check for good and bad MI keywords
             goodMIKeywords.forEach(keyword => {
                 if (input.includes(keyword)) {
-                    score -= 15; // Strong MI technique decreases resistance
+                    score -= 8;
                 }
             });
             
             badMIKeywords.forEach(keyword => {
                 if (input.includes(keyword)) {
-                    score += 10; // Poor MI technique increases resistance
+                    score += 12;
                 }
             });
             
-            // Add more scoring for question marks (open questions) and input length (showing interest)
-            if (input.includes("?")) score -= 5;
-            if (input.length > 30) score -= 5;
+            // Bonus for longer, thoughtful responses (showing engagement)
+            score -= Math.min(10, Math.floor(input.length / 30));
             
             return score;
         }

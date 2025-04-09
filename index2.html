@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Addiction Counseling Simulation</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #222; color: white; text-align: center; padding: 20px; }
+        #game-text { margin: 20px auto; width: 80%; line-height: 1.6; text-align: left; background: #333; padding: 15px; border-radius: 5px; min-height: 100px; }
+        .choice { display: block; margin: 10px auto; padding: 10px; background: #444; color: white; border: none; cursor: pointer; width: 200px; }
+        .choice:hover { background: #666; }
+        #resistance-container { margin-top: 20px; border: 1px solid #444; padding: 2px; width: 60%; margin-left: auto; margin-right: auto; }
+        #resistance-bar { width: 100%; height: 20px; background: red; transition: width 0.3s ease; }
+        #player-input { margin: 10px 0; padding: 10px; width: 80%; background: #333; color: white; border: 1px solid #555; }
+        .input-container { margin: 20px 0; }
+        .error-message { color: #ff6b6b; margin: 10px 0; }
+        .stats { margin: 15px 0; padding: 10px; background: #333; display: inline-block; border-radius: 5px; }
+        #api-key-container { margin: 20px 0; padding: 20px; background: #333; border-radius: 5px; }
+        .label { display: block; margin-bottom: 10px; text-align: left; }
+        #history { max-height: 300px; overflow-y: auto; margin: 15px auto; width: 80%; text-align: left; background: #333; padding: 10px; border-radius: 5px; }
+        .client-message { color: #ffcc00; margin: 5px 0; }
+        .counselor-message { color: #66ccff; margin: 5px 0; }
+        .controls { margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <h1>Addiction Counseling Simulation</h1>
+    
+    <div id="api-key-container">
+        <label class="label">Enter your Mistral API Key:</label>
+        <input type="password" id="api-key" style="width: 80%; padding: 10px; margin-bottom: 10px;">
+        <button class="choice" onclick="saveApiKey()">Save Key</button>
+        <p id="api-status">API Status: Not configured</p>
+    </div>
+    
+    <div id="game-container" style="display: none;">
+        <p id="game-text">You are Dr. Chae, an addiction counselor. Your client has concerns about video game addiction. How will you respond?</p>
+        
+        <div id="history"></div>
+        
+        <div class="input-container">
+            <input type="text" id="player-input" placeholder="What would you like to say to your client?">
+            <button class="choice" onclick="processPlayerInput()">Send</button>
+        </div>
+        
+        <div class="stats">
+            <p>Client Resistance: <span id="resistance">100</span>%</p>
+        </div>
+        
+        <div id="resistance-container">
+            <div id="resistance-bar"></div>
+        </div>
+        
+        <div id="error-message" class="error-message"></div>
+        
+        <div class="controls">
+            <button class="choice" onclick="resetGame()">Reset Session</button>
+        </div>
+    </div>
+    
+    <script>
+        let resistance = 100;
+        let apiKey = '';
+        let conversationHistory = [
+            {role: "system", content: "You are a client struggling with video game addiction. You spend 6-8 hours gaming daily, which has affected your work and relationships. You are somewhat defensive about your gaming habits, using rationalizations like 'everyone plays a lot these days' or 'it helps me deal with stress'. Respond realistically to a counselor's questions and interventions. As the conversation progresses and the counselor uses effective methods, you can gradually become more open to examining your behavior. Keep responses concise (1-3 sentences)."},
+            {role: "assistant", content: "I don't think I have a problem with gaming. Everyone plays a lot these days."}
+        ];
+        
+        function saveApiKey() {
+            apiKey = document.getElementById("api-key").value.trim();
+            if (!apiKey) {
+                document.getElementById("api-status").innerText = "API Status: No key provided";
+                return;
+            }
+            
+            // Test the API connection
+            testApiConnection();
+        }
+        
+        async function testApiConnection() {
+            document.getElementById("api-status").innerText = "API Status: Testing connection...";
+            try {
+                const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: "mistral-tiny",
+                        messages: [
+                            {role: "system", content: "You are a test assistant."},
+                            {role: "user", content: "Respond with 'API connection successful' only."}
+                        ]
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API responded with status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                document.getElementById("api-status").innerText = "API Status: Connected successfully";
+                document.getElementById("api-key-container").style.display = "none";
+                document.getElementById("game-container").style.display = "block";
+                initializeGame();
+                
+            } catch (error) {
+                console.error('API Connection Error:', error);
+                document.getElementById("api-status").innerText = `API Status: Connection failed - ${error.message}`;
+            }
+        }
+        
+        function initializeGame() {
+            resistance = 100;
+            updateResistanceBar();
+            document.getElementById("history").innerHTML = `
+                <div class="client-message">Client: I don't think I have a problem with gaming. Everyone plays a lot these days.</div>
+            `;
+        }
+        
+        async function processPlayerInput() {
+            let playerInput = document.getElementById("player-input").value.trim();
+            if (!playerInput) return;
+            
+            document.getElementById("error-message").innerText = "";
+            
+            // Add counselor's message to history
+            document.getElementById("history").innerHTML += `
+                <div class="counselor-message">Dr. Chae: ${playerInput}</div>
+            `;
+            document.getElementById("game-text").innerText = "Client is thinking...";
+            document.getElementById("player-input").value = "";
+            
+            // Add to conversation history
+            conversationHistory.push({role: "user", content: "The counselor says: " + playerInput});
+            
+            // Evaluate the therapist's Motivational Interviewing skills
+            let miScore = evaluateMotivationalInterviewing(playerInput);
+            
+            try {
+                // Send request to Mistral API
+                const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: "mistral-small",
+                        messages: conversationHistory
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API responded with status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                const clientResponse = data.choices[0].message.content;
+                
+                // Add client response to history
+                document.getElementById("game-text").innerText = "Client: " + clientResponse;
+                document.getElementById("history").innerHTML += `
+                    <div class="client-message">Client: ${clientResponse}</div>
+                `;
+                
+                // Add to conversation history
+                conversationHistory.push({role: "assistant", content: clientResponse});
+                
+                // Adjust resistance based on MI score
+                adjustResistance(miScore);
+                
+                // Auto-scroll history to bottom
+                const historyDiv = document.getElementById("history");
+                historyDiv.scrollTop = historyDiv.scrollHeight;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById("error-message").innerText = `API Error: ${error.message}`;
+                document.getElementById("game-text").innerText = "There was an error communicating with the API.";
+            }
+        }
+        
+        function evaluateMotivationalInterviewing(input) {
+            const goodMIKeywords = [
+                "tell me more", "how do you feel", "what do you think", "it sounds like", 
+                "I understand", "your perspective", "choices", "goals", "reflections", 
+                "values", "strengths", "on a scale", "help me understand", 
+                "what would you like", "what matters to you"
+            ];
+            
+            const badMIKeywords = [
+                "you should", "just stop", "why don't you", "that's wrong", 
+                "have to", "must", "need to", "you can't", "you're addicted", 
+                "problem", "bad habit", "quit", "failure"
+            ];
+            
+            let score = 0;
+            input = input.toLowerCase();
+            
+            // Check for OARS techniques (Open questions, Affirmations, Reflections, Summaries)
+            if (input.includes("?") && !input.includes("right?") && !input.includes("ok?")) {
+                score -= 5; // Open question
+            }
+            
+            // Check for affirming language
+            if (input.includes("appreciate") || input.includes("strength") || 
+                input.includes("effort") || input.includes("commitment")) {
+                score -= 10; // Affirmation
+            }
+            
+            // Check for reflective statements
+            if (input.includes("it sounds like") || input.includes("you feel") || 
+                input.includes("you're saying") || input.includes("in other words")) {
+                score -= 15; // Reflection
+            }
+            
+            // Check for summaries
+            if (input.includes("so far") || input.includes("to summarize") || 
+                input.includes("it seems like") && input.length > 50) {
+                score -= 10; // Summary
+            }
+            
+            // Check for good and bad MI keywords
+            goodMIKeywords.forEach(keyword => {
+                if (input.includes(keyword)) {
+                    score -= 8;
+                }
+            });
+            
+            badMIKeywords.forEach(keyword => {
+                if (input.includes(keyword)) {
+                    score += 12;
+                }
+            });
+            
+            // Bonus for longer, thoughtful responses (showing engagement)
+            score -= Math.min(10, Math.floor(input.length / 30));
+            
+            return score;
+        }
+        
+        function adjustResistance(amount) {
+            resistance = Math.max(0, Math.min(100, resistance + amount));
+            updateResistanceBar();
+            document.getElementById("resistance").innerText = resistance;
+            
+            if (resistance <= 0) {
+                document.getElementById("game-text").innerText = "You've built a strong therapeutic alliance! The client is now fully engaged and open to change.";
+                document.getElementById("history").innerHTML += `
+                    <div class="client-message">Client: I think I'm ready to make some changes to my gaming habits. Thank you for helping me see things differently.</div>
+                `;
+                document.getElementById("player-input").disabled = true;
+            }
+            
+            if (resistance <= 25) {
+                // Add system message to guide AI toward being more receptive
+                conversationHistory.push({
+                    role: "system", 
+                    content: "The client is becoming much more open to change. Show increased self-awareness and willingness to examine gaming habits."
+                });
+            }
+        }
+        
+        function updateResistanceBar() {
+            document.getElementById("resistance-bar").style.width = resistance + "%";
+            
+            // Change color based on resistance level
+            const color = resistance > 70 ? 'red' : resistance > 30 ? 'orange' : 'green';
+            document.getElementById("resistance-bar").style.background = color;
+        }
+        
+        function resetGame() {
+            resistance = 100;
+            conversationHistory = [
+                {role: "system", content: "You are a clinical mental health counseling student in your 30s named Ryan. You go to Wheaton College and graduate soon. Your best friend is Nate. He is in that same program. You are attending counseling for the first time because Nate really encouraged you to get help for some video game behaviors that are out of hand and causing significant distress. You have a video game addiction but are very defensive about your gaming habits, using rationalizations like 'everyone plays a lot these days' or 'it helps me deal with stress'. You do not want to be at counseling. When the counselor talks to you, you are resistant at first and never fully acknowledge you have an addiction, but as the counselor follows the Motivational Interviewing core principles, you slowly become less resistant. It should take several good counselor responses before you start to become more open. Motivational interviewing principles include: Resist the “fixing (righting) reflex”; Understand your clients’ motivations; Listen to your clients: Empower your clients. The tasks are engaging, focusing, evoking, and planning. The skills are Open-ended questions, Affirmations, Reflective listening, Summarizing, Advising, and Informing. Keep responses concise (1-3 sentences)."},
+                {role: "assistant", content: "I don't think I have a problem with gaming. Everyone plays a lot these days."}
+            ];
+            document.getElementById("history").innerHTML = `
+                <div class="client-message">Client: I don't think I have a problem with gaming. Everyone plays a lot these days.</div>
+            `;
+            document.getElementById("game-text").innerText = "You are Dr. Chae, an addiction counselor. Your client has concerns about video game addiction. How will you respond?";
+            document.getElementById("player-input").disabled = false;
+            updateResistanceBar();
+            document.getElementById("resistance").innerText = resistance;
+        }
+    </script>
+</body>
+</html>
